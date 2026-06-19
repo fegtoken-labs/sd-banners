@@ -1,0 +1,47 @@
+name: Sync Branches to Main
+
+on:
+  push:
+    branches-ignore:
+        - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v3
+
+      - name: Get current branch name
+        id: vars
+        run: echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_ENV
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "fegfilip@gmail.com"
+          git config --global user.name "FEGfilip"
+
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Checkout main branch
+        run: git checkout main
+
+      - name: Create a directory for the current branch
+        run: mkdir -p ./${{ env.branch }}
+
+      - name: Copy differences from current branch to main
+        run: |
+          git checkout ${{ env.branch }}
+          rsync -av --exclude='.git' --exclude='.github/' . ../${{ env.branch }}
+          git checkout main
+          rsync -av --exclude='.git' --exclude='.github' ../${{ env.branch }}/* ./${{ env.branch }}
+
+      - name: Commit changes
+        run: |
+          git add .
+          git commit -m "Sync changes from ${{ env.branch }} to main" || echo "No changes to commit"
+
+      - name: Push changes
+        run: git push origin main
