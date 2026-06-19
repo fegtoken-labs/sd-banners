@@ -72,7 +72,7 @@ jobs:
             if [[ $file == *.png ]]; then
               directory=$(dirname $file)
               file_name=$(basename $file)
-              files_list+="\"https://assets.smartdefi.com/${directory}/${file_name}\","
+              files_list+="\"https://banners.smartdefi.com/${directory}/${file_name}\","
             fi
           done
           files_list="[${files_list%,}]"
