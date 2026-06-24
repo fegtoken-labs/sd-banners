@@ -28,6 +28,8 @@ concurrency:
 jobs:
   # Single deploy job since we're just deploying
   deploy:
+    # When triggered by the upstream sync workflow, only deploy if it succeeded
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -46,38 +48,13 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v44
-        with:
-          since_last_remote_commit: true 
-
-      - name: List all changed files
-        env:
-          changed_files: ${{ steps.changed-files.outputs.all_changed_files }}
-        run: |
-          for file in ${changed_files}; do
-            echo "$file was changed"
-          done
-
-      - name: Call Cloudflare Purge Cache API
-        if: ${{ env.changed_files }} != ''
+      # Purge the entire Cloudflare cache once, after a successful deploy
+      - name: Purge Cloudflare cache
         env:
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          changed_files=$(echo ${{ steps.changed-files.outputs.all_changed_files }} | tr '\n' ' ')
-          files_list=""
-          for file in $changed_files; do
-            if [[ $file == *.png ]]; then
-              directory=$(dirname $file)
-              file_name=$(basename $file)
-              files_list+="\"https://banners.smartdefi.com/${directory}/${file_name}\","
-            fi
-          done
-          files_list="[${files_list%,}]"
-          echo "Purging cache for files: $files_list"
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
-          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-          -H "Content-Type: application/json" \
-          --data "{\"files\": ${files_list}}"
+          curl --fail -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything": true}'
